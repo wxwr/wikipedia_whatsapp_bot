@@ -1,0 +1,180 @@
+from sqlite3 import Time
+from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import TimeoutException,ElementClickInterceptedException, NoSuchElementException
+from datetime import datetime,timezone
+import requests
+import json
+import subprocess
+import logging
+import time
+import urllib.parse
+
+def searchArticles(usersearch):
+    logging.info(str(datetime.now(timezone.utc))+":search:"+usersearch)
+    try:
+        searchresponse = wikiSession.get('https://pt.wikipedia.org/w/api.php?action=opensearch&search='+usersearch+'&profile=fuzzy&redirects=resolve',timeout=10)
+    except:
+        logging.info(str(datetime.now(timezone.utc))+":System:Wiki search exception")
+        return ("Por favor pesquise novamente")
+    responsejson = json.loads(searchresponse.text)
+    pagename = [w.split('wiki/')[1] for w in responsejson[3]]
+    nroofpages = len(pagename)
+    if nroofpages>1:
+        addindextopage = [f'*{index}* {responses}' for index, responses in enumerate(pagename)]
+        usersearchresult = "\n".join(addindextopage)
+        usersearchresult=urllib.parse.unquote(usersearchresult)
+        usersearchresult = "Digite somente o numero do artigo que deseja receber:\n" + usersearchresult
+    elif nroofpages==1:
+        logging.info(str(datetime.now(timezone.utc))+":Article:"+pagename[0])
+        try:
+            wikiresponse = wikiSession.get('https://pt.wikipedia.org/w/api.php?action=query&titles='+pagename[0]+'&prop=extracts&format=json&explaintext=',timeout=10)
+        except:
+            logging.info(str(datetime.now(timezone.utc))+":System:Wiki artcile exception")
+            return ("Por favor pesquise novamente")
+        myresponse = json.loads(wikiresponse.text)
+        usersearchresult = list(myresponse["query"]["pages"].values())[0]["extract"]
+    else:
+        logging.info(str(datetime.now(timezone.utc))+":ArticleNotFound:"+usersearch)
+        usersearchresult = "Nenhum artigo encontrado para sua pesquisa: "+usersearch
+
+    return usersearchresult
+
+def getUserArticles(userchoices,selectedarticle):
+    userchoiceslines = userchoices.splitlines()
+    if len(userchoiceslines)>2:
+        if selectedarticle<len(userchoiceslines)-1:
+            userchoiceslines = userchoiceslines[int(selectedarticle)+1].split()[1]
+            logging.info(str(datetime.now(timezone.utc))+":article:"+userchoiceslines)
+            try:
+                wikiresponse = wikiSession.get('https://pt.wikipedia.org/w/api.php?action=query&titles='+userchoiceslines+'&prop=extracts&format=json&explaintext=',timeout=10)
+            except:
+                logging.info(str(datetime.now(timezone.utc))+":System:Wiki artcile exception")
+                return ("Por favor pesquise novamente")
+            userarticle = json.loads(wikiresponse.text)
+            userarticle = list(userarticle["query"]["pages"].values())[0]["extract"]
+        else:
+            logging.info(str(datetime.now(timezone.utc))+":UserError:Selection out of choices ranges")
+            userarticle = userchoices
+    else:
+        logging.info(str(datetime.now(timezone.utc))+":UserChoicesFormatNotExpected:"+userchoices[0])
+        userarticle = "Por favor faça uma nova busca"
+    return userarticle
+
+#https://theintercept.com/2018/08/10/whatsapp-facebook-gratis-fake-news/
+#https://www.correiobraziliense.com.br/app/noticia/tecnologia/2019/12/10/interna_tecnologia,812946/whatsapp-e-a-principal-fonte-de-informacao-dos-brasileiros-indica-pes.shtml
+#https://tecnoblog.net/326932/whatsapp-chega-a-99-por-cento-celulares-brasil-telegram-cresce/
+
+logging.basicConfig(filename='logwiki.log', encoding='utf-8', level=logging.INFO)
+
+driver = webdriver.Firefox()
+driver.get("https://web.whatsapp.com/")
+time.sleep(3)
+assert "WhatsApp" in driver.title
+wait = WebDriverWait(driver, 10)
+
+#constants
+myself = input('Scan QR code And enter your phone number')
+maxCharQuery=50
+maxOptionsQuery=1250
+splitLongResponse = 65534
+htmlMmyOwnChat = ("//span[text()='{}']").format(myself) #search for all span strings
+htmlNewNotification = ('//span[@class = "_23LrM"]')
+htmlChatMsgs = ('//span[@class = "emoji-texttt i0jNr selectable-text copyable-text"]')
+htmlInputBox = '//div[@class="_13NKt copyable-text selectable-text"][@data-tab="9"]'
+htmlMsgNotSent = './/span[@data-testid = "status-time"]'
+
+wikiSession = requests.Session()
+wikiSession.headers.update({"Accept-Encoding":"gzip"})
+
+while True:
+    try:   
+        newchat = wait.until(EC.presence_of_element_located((By.XPATH, htmlNewNotification)))
+        try:   
+            if driver.find_element(By.XPATH, htmlMsgNotSent)!="":
+                print("bugfixedddd")
+                time.sleep(1)
+                continue
+        except NoSuchElementException:
+            time.sleep(1)
+            print("just keep going all msgs were sent")
+    except TimeoutException:
+        #logging.info(str(datetime.now(timezone.utc))+":System:No searches in last minute")
+        continue
+    try:
+        newchat = wait.until(EC.presence_of_element_located((By.XPATH, htmlNewNotification)))
+    except TimeoutException:
+        continue
+
+    try:
+        newchat.click()
+    except ElementClickInterceptedException:
+        print(str(datetime.now(timezone.utc))+":WhatsAppPopUp:Blocking element click new notificaion")
+    try:
+        lastmsgs = wait.until(EC.presence_of_all_elements_located((By.XPATH, htmlChatMsgs)))
+    except TimeoutException:
+        logging.info(str(datetime.now(timezone.utc))+":ToFix:Notification found but no new msgs found")
+        print("toFix")
+        continue
+
+    if lastmsgs:
+        onlylastmsg=lastmsgs[-1].text
+
+    if len(lastmsgs)>1:
+        if len(lastmsgs[-2].text)<maxOptionsQuery:
+            beforelastmsg = lastmsgs[-2].text
+        else:
+            beforelastmsg=""
+    else:
+        logging.info(str(datetime.now(timezone.utc))+":System:New User")
+
+    if len(onlylastmsg)<=maxCharQuery:
+        if len(onlylastmsg)==1:
+            try:
+                onlylastmsg=int(onlylastmsg)
+            except ValueError:
+                userresponse=searchArticles(onlylastmsg)
+            if onlylastmsg in range(0,10):
+                userresponse=getUserArticles(beforelastmsg,onlylastmsg)
+        else:
+            userresponse=searchArticles(onlylastmsg)
+    else:
+        logging.info(str(datetime.now(timezone.utc))+":UserError:Query too long char count--"+str(len(onlylastmsg)))
+        userresponse="Faça uma busca com menos palavras"
+
+    input_box = wait.until(EC.presence_of_element_located((By.XPATH, htmlInputBox)))
+
+    if len(userresponse)<splitLongResponse:
+        userresponseinBytes=bytes(userresponse, 'utf-8')
+        subprocess.run(["xclip","-selection","clipboard"],input=userresponseinBytes)
+        input_box.send_keys(Keys.CONTROL + "v") #max size 66536 characters
+        input_box.send_keys(Keys.ENTER)
+    else:
+        left = userresponse[:splitLongResponse]
+        userresponseinBytes=bytes(left, 'utf-8')
+        subprocess.run(["xclip","-selection","clipboard"],input=userresponseinBytes)
+        input_box.send_keys(Keys.CONTROL + "v") #max size 66536 characters
+        input_box.send_keys(Keys.ENTER)
+        right = "*...Continuação comece pela mensagem anterior* \n" + userresponse[splitLongResponse:]
+        userresponseinBytes=bytes(right, 'utf-8')
+        subprocess.run(["xclip","-selection","clipboard"],input=userresponseinBytes)
+        input_box.send_keys(Keys.CONTROL + "v") #max size 66536 characters
+        input_box.send_keys(Keys.ENTER)
+
+    #either click on my own chat or send a msg to myself to make sure focus is outside users chat and notification will always show up
+    group_title = wait.until(EC.presence_of_element_located((By.XPATH, htmlMmyOwnChat)))
+    try:
+        group_title.click()
+    except ElementClickInterceptedException:
+        logging.info(str(datetime.now(timezone.utc))+":WhatsAppPopUp:Screenshot Taken")
+        driver.save_screenshot(str(datetime.now(timezone.utc))+"screenshot.png")
+    #input_box = wait.until(EC.presence_of_element_located((By.XPATH, inp_xpath)))
+    #input_box.send_keys("a") 
+    #input_box.send_keys(Keys.ENTER)
+
+#assert "No results found." not in driver.page_source
+#driver.close()
+

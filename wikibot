@@ -82,9 +82,9 @@ maxCharQuery=50
 maxOptionsQuery=1250
 splitLongResponse = 65534
 htmlMmyOwnChat = ("//span[text()='{}']").format(myself) #search for all span strings
-htmlNewNotification = ('//span[@class = "_23LrM"]')
-htmlChatMsgs = ('//span[@class = "emoji-texttt i0jNr selectable-text copyable-text"]')
-htmlInputBox = '//div[@class="_13NKt copyable-text selectable-text"][@data-tab="9"]'
+htmlNewNotification = ('//div[@class = "_1pJ9J"]') ##new notification icon
+htmlChatMsgs = ('//span[@class = "i0jNr selectable-text copyable-text"]') #chat history
+htmlInputBox = '//div[@class="_13NKt copyable-text selectable-text"][@data-tab="10"]' #typing area
 htmlMsgNotSent = './/span[@data-testid = "status-time"]'
 
 wikiSession = requests.Session()

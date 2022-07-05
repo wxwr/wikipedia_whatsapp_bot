@@ -10,4 +10,6 @@ Once you it is done, run the application, scan the QR code and enter the chat na
 Note that if you have saved your own number as contact, you will need to enter your contact name.
 Then you can start asking people to send msgs to your number to test it.
 
-**This bot is published at this whatsapp number +1 415 881 4204 wa.me/14158814204 > feel free to send a message to test 😁**
+**This bot is published at this whatsapp number +1 415 881 4204 [wa.me/14158814204](wa.me/14158814204) > feel free to send a message to test 😁**
+
+I worked on this project just to learn more about Selenium library
